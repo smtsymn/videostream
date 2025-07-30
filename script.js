@@ -887,6 +887,36 @@ class ScreenShareApp {
         const urlParams = new URLSearchParams(window.location.search);
         return urlParams.get('mode');
     }
+
+    setMode(mode) {
+        this.currentMode = mode;
+        
+        // YENİ EKLENEN: localStorage'a kaydet
+        localStorage.setItem('screenShareMode', mode);
+        
+        // YENİ EKLENEN: URL'yi güncelle
+        const url = new URL(window.location);
+        url.searchParams.set('mode', mode);
+        window.history.replaceState({}, '', url);
+        
+        this.updateModeUI();
+        this.loadInstructions();
+        this.updatePlaceholder();
+        
+        // Socket.IO bağlantısını yeniden başlat
+        if (this.socket && this.socket.connected) {
+            this.socket.disconnect();
+            this.initSocket();
+        }
+        
+        // Hide mode selection modal
+        document.getElementById('mode-modal').classList.add('hidden');
+        document.body.style.overflow = '';
+        
+        // Show notification
+        const modeText = mode === 'viewer' ? 'İzleyici' : 'Yayıncı';
+        this.showNotification(`${modeText} moduna geçildi`, 'success');
+    }
 }
 
 // Initialize app when DOM is loaded
