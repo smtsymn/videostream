@@ -5,7 +5,11 @@ class ScreenShareApp {
         this.audioEnabled = false;
         this.videoEnabled = true;
         this.isSharing = false;
-        this.currentMode = null; // 'viewer' veya 'broadcaster'
+        
+        // YENİ EKLENEN: URL'den veya localStorage'dan mod belirleme
+        const urlParams = new URLSearchParams(window.location.search);
+        this.currentMode = urlParams.get('mode') || localStorage.getItem('screenShareMode') || 'viewer';
+        
         this.settings = {
             videoQuality: 'medium',
             frameRate: 30,
@@ -35,32 +39,9 @@ class ScreenShareApp {
         this.socket = null;
         this.peerConnections = {};
         this.localStream = null;
-        this.roomId = this.getRoomIdFromURL(); // URL'den room ID al
-        this.currentMode = this.getInitialMode(); // YENİ EKLENEN
+        this.roomId = this.getRoomIdFromURL();
         
         this.init();
-    }
-
-    // YENİ EKLENEN: Başlangıç modunu belirleme
-    getInitialMode() {
-        // 1. Önce URL'den mode parametresini kontrol et
-        const urlParams = new URLSearchParams(window.location.search);
-        const urlMode = urlParams.get('mode');
-        
-        if (urlMode === 'viewer' || urlMode === 'broadcaster') {
-            return urlMode;
-        }
-        
-        // 2. localStorage'dan kaydedilmiş modu kontrol et
-        const savedMode = localStorage.getItem('screenshare-mode');
-        const rememberMode = localStorage.getItem('screenshare-remember-mode') === 'true';
-        
-        if (savedMode && rememberMode) {
-            return savedMode;
-        }
-        
-        // 3. Varsayılan olarak viewer modu
-        return 'viewer';
     }
 
     // YENİ EKLENEN: URL'den room ID alma
@@ -87,257 +68,12 @@ class ScreenShareApp {
 
     init() {
         this.loadSettings();
-        this.updateModeUI(); // YENİ EKLENEN - Mod UI'ını güncelle
-        this.initSocket();
+        this.updateModeUI(); // Mod UI'ını güncelle
+        this.initSocket(); // YENİ EKLENEN
         this.bindEvents();
         this.checkBrowserSupport();
         this.hideLoadingScreen();
         this.updateStats();
-    }
-
-    checkSavedMode() {
-        // Bu fonksiyonu güncelle - artık constructor'da mod belirleniyor
-        if (!this.currentMode) {
-            this.showModeSelection();
-        } else {
-            this.updateModeUI();
-            this.loadInstructions();
-            this.updatePlaceholder();
-        }
-    }
-
-    showModeSelection() {
-        document.getElementById('mode-modal').classList.remove('hidden');
-        document.body.style.overflow = 'hidden';
-    }
-
-    setMode(mode) {
-        this.currentMode = mode;
-        this.updateModeUI();
-        this.loadInstructions();
-        this.updatePlaceholder();
-        
-        // Socket.IO bağlantısını yeniden başlat
-        if (this.socket && this.socket.connected) {
-            this.socket.disconnect();
-            this.initSocket();
-        }
-        
-        // Save mode if remember is checked
-        if (this.settings.rememberMode) {
-            localStorage.setItem('screenshare-mode', mode);
-            localStorage.setItem('screenshare-remember-mode', 'true');
-        }
-        
-        // Hide mode selection modal
-        document.getElementById('mode-modal').classList.add('hidden');
-        document.body.style.overflow = '';
-        
-        // Show notification
-        const modeText = mode === 'viewer' ? 'İzleyici' : 'Yayıncı';
-        this.showNotification(`${modeText} moduna geçildi`, 'success');
-    }
-
-    updateModeUI() {
-        const modeBadge = document.getElementById('mode-badge');
-        const switchModeBtn = document.getElementById('switch-mode-btn');
-        
-        if (this.currentMode) {
-            modeBadge.textContent = this.currentMode === 'viewer' ? 'İzleyici' : 'Yayıncı';
-            modeBadge.className = `mode-badge ${this.currentMode}`;
-            modeBadge.classList.remove('hidden');
-            
-            // Update switch mode button icon
-            const icon = switchModeBtn.querySelector('i');
-            icon.className = this.currentMode === 'viewer' ? 'fas fa-broadcast-tower' : 'fas fa-eye';
-            switchModeBtn.title = this.currentMode === 'viewer' ? 'Yayıncı Moduna Geç' : 'İzleyici Moduna Geç';
-        } else {
-            modeBadge.classList.add('hidden');
-        }
-    }
-
-    updatePlaceholder() {
-        const placeholderTitle = document.getElementById('placeholder-title');
-        const placeholderDescription = document.getElementById('placeholder-description');
-        const shareBtn = document.getElementById('share-btn');
-        const viewerWaiting = document.getElementById('viewer-waiting');
-        
-        if (this.currentMode === 'viewer') {
-            placeholderTitle.textContent = 'Yayın Bekleniyor';
-            placeholderDescription.textContent = 'Yayıncı bağlandığında otomatik olarak yayın başlayacak';
-            shareBtn.classList.add('hidden');
-            viewerWaiting.classList.remove('hidden');
-        } else {
-            placeholderTitle.textContent = 'Ekran Paylaşımı Başlatın';
-            placeholderDescription.textContent = 'Profesyonel ekran paylaşımı için aşağıdaki butona tıklayın';
-            shareBtn.classList.remove('hidden');
-            viewerWaiting.classList.add('hidden');
-        }
-    }
-
-    loadInstructions() {
-        const infoContent = document.getElementById('info-content');
-        
-        if (this.currentMode === 'viewer') {
-            infoContent.innerHTML = `
-                <div class="instruction-step">
-                    <div class="step-number">1</div>
-                    <div class="step-content">
-                        <h4>Yayın Bekleyin</h4>
-                        <p>Yayıncı bağlandığında otomatik olarak yayın başlar</p>
-                    </div>
-                </div>
-                <div class="instruction-step">
-                    <div class="step-number">2</div>
-                    <div class="step-content">
-                        <h4>İzleyin</h4>
-                        <p>Paylaşılan ekranı gerçek zamanlı olarak izleyin</p>
-                    </div>
-                </div>
-                <div class="instruction-step">
-                    <div class="step-number">3</div>
-                    <div class="step-content">
-                        <h4>Chat Yapın</h4>
-                        <p>Diğer kullanıcılarla mesajlaşın</p>
-                    </div>
-                </div>
-                <div class="instruction-step">
-                    <div class="step-number">4</div>
-                    <div class="step-content">
-                        <h4>Sese Katılın</h4>
-                        <p>İsterseniz sesli chat'e katılın</p>
-                    </div>
-                </div>
-                <div class="instruction-step">
-                    <div class="step-number">5</div>
-                    <div class="step-content">
-                        <h4>Mod Değiştirin</h4>
-                        <p>İsterseniz yayıncı moduna geçerek kendi paylaşımınızı yapın</p>
-                    </div>
-                </div>
-            `;
-        } else {
-            infoContent.innerHTML = `
-                <div class="instruction-step">
-                    <div class="step-number">1</div>
-                    <div class="step-content">
-                        <h4>Ekran Paylaş</h4>
-                        <p>Ana butona tıklayarak paylaşımı başlatın</p>
-                    </div>
-                </div>
-                <div class="instruction-step">
-                    <div class="step-number">2</div>
-                    <div class="step-content">
-                        <h4>Paylaşım Seçin</h4>
-                        <p>Ekran, pencere veya sekme seçin</p>
-                    </div>
-                </div>
-                <div class="instruction-step">
-                    <div class="step-number">3</div>
-                    <div class="step-content">
-                        <h4>Ses Ekle</h4>
-                        <p>İsteğe bağlı olarak sistem sesini dahil edin</p>
-                    </div>
-                </div>
-                <div class="instruction-step">
-                    <div class="step-number">4</div>
-                    <div class="step-content">
-                        <h4>İzleyicilerle Etkileşim</h4>
-                        <p>Chat ve sesli chat ile izleyicilerle iletişim kurun</p>
-                    </div>
-                </div>
-                <div class="instruction-step">
-                    <div class="step-number">5</div>
-                    <div class="step-content">
-                        <h4>Kontrol Et</h4>
-                        <p>Alt kontrollerle ses ve videoyu yönetin</p>
-                    </div>
-                </div>
-            `;
-        }
-    }
-
-    bindEvents() {
-        // Mode selection
-        document.querySelectorAll('.mode-option').forEach(option => {
-            option.addEventListener('click', () => {
-                const mode = option.dataset.mode;
-                this.setMode(mode);
-                this.updateURLWithMode(mode); // YENİ EKLENEN
-            });
-        });
-
-        // Remember mode checkbox
-        document.getElementById('remember-mode').addEventListener('change', (e) => {
-            this.settings.rememberMode = e.target.checked;
-            this.saveSettings();
-        });
-
-        // Switch mode button
-        document.getElementById('switch-mode-btn').addEventListener('click', () => {
-            this.showModeSelection();
-        });
-
-        // Chat events
-        document.getElementById('toggle-chat').addEventListener('click', () => this.toggleChat());
-        document.getElementById('send-chat').addEventListener('click', () => this.sendChatMessage());
-        document.getElementById('chat-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') this.sendChatMessage();
-        });
-
-        // Voice chat events
-        document.getElementById('toggle-voice').addEventListener('click', () => this.toggleVoice());
-        document.getElementById('join-voice').addEventListener('click', () => this.joinVoiceChat());
-        document.getElementById('leave-voice').addEventListener('click', () => this.leaveVoiceChat());
-
-        // Info toggle
-        document.getElementById('toggle-info').addEventListener('click', () => this.toggleInfo());
-
-        // Main buttons
-        document.getElementById('share-btn').addEventListener('click', () => this.startSharing());
-        document.getElementById('stop-btn').addEventListener('click', () => this.stopSharing());
-        document.getElementById('toggle-audio-btn').addEventListener('click', () => this.toggleAudio());
-        document.getElementById('toggle-video-btn').addEventListener('click', () => this.toggleVideo());
-        
-        // Settings
-        document.getElementById('settings-btn').addEventListener('click', () => this.openSettings());
-        document.getElementById('close-settings').addEventListener('click', () => this.closeSettings());
-        
-        // Video controls
-        document.getElementById('fullscreen-btn').addEventListener('click', () => this.toggleFullscreen());
-        document.getElementById('quality-btn').addEventListener('click', () => this.openSettings());
-        
-        // Settings form
-        document.getElementById('video-quality').addEventListener('change', (e) => this.updateSetting('videoQuality', e.target.value));
-        document.getElementById('frame-rate').addEventListener('change', (e) => this.updateSetting('frameRate', parseInt(e.target.value)));
-        document.getElementById('auto-quality').addEventListener('change', (e) => this.updateSetting('autoQuality', e.target.checked));
-        document.getElementById('show-stats').addEventListener('change', (e) => this.updateSetting('showStats', e.target.checked));
-        document.getElementById('auto-join').addEventListener('change', (e) => this.updateSetting('autoJoin', e.target.checked));
-        document.getElementById('chat-notifications').addEventListener('change', (e) => this.updateSetting('chatNotifications', e.target.checked));
-        document.getElementById('voice-notifications').addEventListener('change', (e) => this.updateSetting('voiceNotifications', e.target.checked));
-        document.getElementById('notification-volume').addEventListener('input', (e) => this.updateNotificationVolume(e.target.value));
-        
-        // Modal backdrop click
-        document.getElementById('settings-modal').addEventListener('click', (e) => {
-            if (e.target.id === 'settings-modal') {
-                this.closeSettings();
-            }
-        });
-
-        document.getElementById('mode-modal').addEventListener('click', (e) => {
-            if (e.target.id === 'mode-modal') {
-                // Don't close mode modal on backdrop click - user must choose
-            }
-        });
-
-        // Keyboard shortcuts
-        document.addEventListener('keydown', (e) => this.handleKeyboard(e));
-        
-        // Visibility change (when user switches tabs)
-        document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
-        
-        // Window resize
-        window.addEventListener('resize', () => this.handleResize());
     }
 
     // YENİ EKLENEN: Socket.IO başlatma
@@ -394,7 +130,7 @@ class ScreenShareApp {
             roomInfo.textContent = `Oda: ${this.roomId} | Mod: ${this.currentMode === 'viewer' ? 'İzleyici' : 'Yayıncı'}`;
         }
         
-        // URL'yi paylaşılabilir hale getir (mode parametresi ile)
+        // URL'yi paylaşılabilir hale getir
         const shareUrl = `${window.location.origin}${window.location.pathname}?room=${this.roomId}&mode=${this.currentMode}`;
         console.log('Paylaşım URL\'si:', shareUrl);
         
