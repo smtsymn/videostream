@@ -678,6 +678,7 @@ class ScreenShareApp {
         }
     }
 
+    // YENİ EKLENEN: loadSettings fonksiyonu
     loadSettings() {
         const saved = localStorage.getItem('screenshare-settings');
         if (saved) {
@@ -685,28 +686,43 @@ class ScreenShareApp {
         }
         
         // Update form values
-        document.getElementById('video-quality').value = this.settings.videoQuality;
-        document.getElementById('frame-rate').value = this.settings.frameRate;
-        document.getElementById('auto-quality').checked = this.settings.autoQuality;
-        document.getElementById('show-stats').checked = this.settings.showStats;
-        document.getElementById('auto-join').checked = this.settings.autoJoin;
-        document.getElementById('remember-mode').checked = this.settings.rememberMode;
-        document.getElementById('chat-notifications').checked = this.settings.chatNotifications;
-        document.getElementById('voice-notifications').checked = this.settings.voiceNotifications;
-        document.getElementById('notification-volume').value = this.settings.notificationVolume;
-        document.getElementById('volume-display').textContent = this.settings.notificationVolume + '%';
+        const videoQuality = document.getElementById('video-quality');
+        const frameRate = document.getElementById('frame-rate');
+        const autoQuality = document.getElementById('auto-quality');
+        const showStats = document.getElementById('show-stats');
+        const autoJoin = document.getElementById('auto-join');
+        const rememberMode = document.getElementById('remember-mode');
+        const chatNotifications = document.getElementById('chat-notifications');
+        const voiceNotifications = document.getElementById('voice-notifications');
+        const notificationVolume = document.getElementById('notification-volume');
+        const volumeDisplay = document.getElementById('volume-display');
+
+        if (videoQuality) videoQuality.value = this.settings.videoQuality;
+        if (frameRate) frameRate.value = this.settings.frameRate;
+        if (autoQuality) autoQuality.checked = this.settings.autoQuality;
+        if (showStats) showStats.checked = this.settings.showStats;
+        if (autoJoin) autoJoin.checked = this.settings.autoJoin;
+        if (rememberMode) rememberMode.checked = this.settings.rememberMode;
+        if (chatNotifications) chatNotifications.checked = this.settings.chatNotifications;
+        if (voiceNotifications) voiceNotifications.checked = this.settings.voiceNotifications;
+        if (notificationVolume) notificationVolume.value = this.settings.notificationVolume;
+        if (volumeDisplay) volumeDisplay.textContent = this.settings.notificationVolume + '%';
     }
 
+    // YENİ EKLENEN: saveSettings fonksiyonu
     saveSettings() {
         localStorage.setItem('screenshare-settings', JSON.stringify(this.settings));
     }
 
+    // YENİ EKLENEN: checkBrowserSupport fonksiyonu
     checkBrowserSupport() {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
             const shareBtn = document.getElementById('share-btn');
-            shareBtn.disabled = true;
-            shareBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Tarayıcı Desteklenmiyor';
-            shareBtn.classList.add('btn-danger');
+            if (shareBtn) {
+                shareBtn.disabled = true;
+                shareBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Tarayıcı Desteklenmiyor';
+                shareBtn.classList.add('btn-danger');
+            }
             
             this.showNotification('Tarayıcınız ekran paylaşımını desteklemiyor. Chrome, Edge veya Firefox kullanın.', 'error');
         }
@@ -727,6 +743,7 @@ class ScreenShareApp {
         }
     }
 
+    // YENİ EKLENEN: updateStats fonksiyonu
     updateStats() {
         if (!this.stream || !this.settings.showStats) return;
 
@@ -735,26 +752,32 @@ class ScreenShareApp {
         this.stats.latency = Math.floor(Math.random() * 200) + 50;
         this.stats.bitrate = Math.floor(Math.random() * 5000) + 2000;
 
-        document.getElementById('fps-counter').textContent = this.stats.fps;
-        document.getElementById('latency-counter').textContent = `${this.stats.latency}ms`;
-        document.getElementById('bitrate-counter').textContent = `${(this.stats.bitrate / 1000).toFixed(1)}k`;
+        const fpsCounter = document.getElementById('fps-counter');
+        const latencyCounter = document.getElementById('latency-counter');
+        const bitrateCounter = document.getElementById('bitrate-counter');
+
+        if (fpsCounter) fpsCounter.textContent = this.stats.fps;
+        if (latencyCounter) latencyCounter.textContent = `${this.stats.latency}ms`;
+        if (bitrateCounter) bitrateCounter.textContent = `${(this.stats.bitrate / 1000).toFixed(1)}k`;
 
         // Update quality indicator
         const qualityLevel = document.getElementById('quality-level');
         const qualityText = document.getElementById('quality-text');
         
-        if (this.stats.fps > 25 && this.stats.latency < 100) {
-            qualityLevel.style.width = '100%';
-            qualityText.textContent = 'Kalite: Mükemmel';
-        } else if (this.stats.fps > 20 && this.stats.latency < 200) {
-            qualityLevel.style.width = '75%';
-            qualityText.textContent = 'Kalite: İyi';
-        } else if (this.stats.fps > 15 && this.stats.latency < 300) {
-            qualityLevel.style.width = '50%';
-            qualityText.textContent = 'Kalite: Orta';
-        } else {
-            qualityLevel.style.width = '25%';
-            qualityText.textContent = 'Kalite: Düşük';
+        if (qualityLevel && qualityText) {
+            if (this.stats.fps > 25 && this.stats.latency < 100) {
+                qualityLevel.style.width = '100%';
+                qualityText.textContent = 'Kalite: Mükemmel';
+            } else if (this.stats.fps > 20 && this.stats.latency < 200) {
+                qualityLevel.style.width = '75%';
+                qualityText.textContent = 'Kalite: İyi';
+            } else if (this.stats.fps > 15 && this.stats.latency < 300) {
+                qualityLevel.style.width = '50%';
+                qualityText.textContent = 'Kalite: Orta';
+            } else {
+                qualityLevel.style.width = '25%';
+                qualityText.textContent = 'Kalite: Düşük';
+            }
         }
     }
 
@@ -860,7 +883,10 @@ class ScreenShareApp {
 
     hideLoadingScreen() {
         setTimeout(() => {
-            document.getElementById('loading-screen').classList.add('hidden');
+            const loadingScreen = document.getElementById('loading-screen');
+            if (loadingScreen) {
+                loadingScreen.classList.add('hidden');
+            }
         }, 1000);
     }
 
@@ -1071,7 +1097,7 @@ class ScreenShareApp {
         window.history.replaceState({}, '', url);
         
         this.updateModeUI();
-        this.loadInstructions();
+        this.loadInstructions(); // Bu fonksiyonu tanımlayacağız
         this.updatePlaceholder();
         
         // Socket.IO bağlantısını yeniden başlat
@@ -1087,6 +1113,119 @@ class ScreenShareApp {
         // Show notification
         const modeText = mode === 'viewer' ? 'İzleyici' : 'Yayıncı';
         this.showNotification(`${modeText} moduna geçildi`, 'success');
+    }
+
+    // YENİ EKLENEN: loadInstructions fonksiyonu
+    loadInstructions() {
+        const infoContent = document.getElementById('info-content');
+        if (!infoContent) return;
+        
+        if (this.currentMode === 'viewer') {
+            infoContent.innerHTML = `
+                <div class="instruction-step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h4>Yayın Bekleyin</h4>
+                        <p>Yayıncı bağlandığında otomatik olarak yayın başlar</p>
+                    </div>
+                </div>
+                <div class="instruction-step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h4>İzleyin</h4>
+                        <p>Paylaşılan ekranı gerçek zamanlı olarak izleyin</p>
+                    </div>
+                </div>
+                <div class="instruction-step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h4>Chat Yapın</h4>
+                        <p>Diğer kullanıcılarla mesajlaşın</p>
+                    </div>
+                </div>
+                <div class="instruction-step">
+                    <div class="step-number">4</div>
+                    <div class="step-content">
+                        <h4>Sese Katılın</h4>
+                        <p>İsterseniz sesli chat'e katılın</p>
+                    </div>
+                </div>
+                <div class="instruction-step">
+                    <div class="step-number">5</div>
+                    <div class="step-content">
+                        <h4>Mod Değiştirin</h4>
+                        <p>İsterseniz yayıncı moduna geçerek kendi paylaşımınızı yapın</p>
+                    </div>
+                </div>
+            `;
+        } else {
+            infoContent.innerHTML = `
+                <div class="instruction-step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h4>Ekran Paylaş</h4>
+                        <p>Ana butona tıklayarak paylaşımı başlatın</p>
+                    </div>
+                </div>
+                <div class="instruction-step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h4>Paylaşım Seçin</h4>
+                        <p>Ekran, pencere veya sekme seçin</p>
+                    </div>
+                </div>
+                <div class="instruction-step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h4>Ses Ekle</h4>
+                        <p>İsteğe bağlı olarak sistem sesini dahil edin</p>
+                    </div>
+                </div>
+                <div class="instruction-step">
+                    <div class="step-number">4</div>
+                    <div class="step-content">
+                        <h4>İzleyicilerle Etkileşim</h4>
+                        <p>Chat ve sesli chat ile izleyicilerle iletişim kurun</p>
+                    </div>
+                </div>
+                <div class="instruction-step">
+                    <div class="step-number">5</div>
+                    <div class="step-content">
+                        <h4>Kontrol Et</h4>
+                        <p>Alt kontrollerle ses ve videoyu yönetin</p>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    // YENİ EKLENEN: updatePlaceholder fonksiyonu
+    updatePlaceholder() {
+        const placeholderTitle = document.getElementById('placeholder-title');
+        const placeholderDescription = document.getElementById('placeholder-description');
+        const shareBtn = document.getElementById('share-btn');
+        const viewerWaiting = document.getElementById('viewer-waiting');
+        
+        if (this.currentMode === 'viewer') {
+            if (placeholderTitle) placeholderTitle.textContent = 'Yayın Bekleniyor';
+            if (placeholderDescription) placeholderDescription.textContent = 'Yayıncı bağlandığında otomatik olarak yayın başlayacak';
+            if (shareBtn) shareBtn.classList.add('hidden');
+            if (viewerWaiting) viewerWaiting.classList.remove('hidden');
+        } else {
+            if (placeholderTitle) placeholderTitle.textContent = 'Ekran Paylaşımı Başlatın';
+            if (placeholderDescription) placeholderDescription.textContent = 'Profesyonel ekran paylaşımı için aşağıdaki butona tıklayın';
+            if (shareBtn) shareBtn.classList.remove('hidden');
+            if (viewerWaiting) viewerWaiting.classList.add('hidden');
+        }
+    }
+
+    // YENİ EKLENEN: showModeSelection fonksiyonu
+    showModeSelection() {
+        const modeModal = document.getElementById('mode-modal');
+        if (modeModal) {
+            modeModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
     }
 }
 
