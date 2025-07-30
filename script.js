@@ -6,7 +6,7 @@ class ScreenShareApp {
         this.videoEnabled = true;
         this.isSharing = false;
         
-        // YENİ EKLENEN: URL'den veya localStorage'dan mod belirleme
+        // YENİ EKLENEN: URL'den mod belirleme
         const urlParams = new URLSearchParams(window.location.search);
         this.currentMode = urlParams.get('mode') || localStorage.getItem('screenShareMode') || 'viewer';
         
@@ -35,7 +35,7 @@ class ScreenShareApp {
         this.notificationSound = null;
         this.userId = this.generateUserId();
         
-        // WebRTC properties - YENİ EKLENEN
+        // WebRTC properties
         this.socket = null;
         this.peerConnections = {};
         this.localStream = null;
@@ -48,17 +48,7 @@ class ScreenShareApp {
     getRoomIdFromURL() {
         const urlParams = new URLSearchParams(window.location.search);
         const roomId = urlParams.get('room');
-        
-        if (roomId) {
-            return roomId;
-        } else {
-            // Room ID yoksa otomatik oluştur ve URL'yi güncelle
-            const autoRoomId = this.generateRoomId();
-            const newUrl = new URL(window.location);
-            newUrl.searchParams.set('room', autoRoomId);
-            window.history.replaceState({}, '', newUrl);
-            return autoRoomId;
-        }
+        return roomId || 'default-room';
     }
 
     // YENİ EKLENEN: Otomatik room ID oluşturma
@@ -68,7 +58,7 @@ class ScreenShareApp {
 
     init() {
         this.loadSettings();
-//this.updateModeUI(); // Mod UI'ını güncelle
+        this.updateModeUI(); // Mod UI'ını güncelle
         this.initSocket(); // YENİ EKLENEN
         this.bindEvents();
         this.checkBrowserSupport();
@@ -78,49 +68,44 @@ class ScreenShareApp {
 
     // YENİ EKLENEN: Socket.IO başlatma
     initSocket() {
-        this.socket = io();
-        
-        this.socket.on('connect', () => {
-            console.log('Socket.IO bağlandı, Room ID:', this.roomId, 'Mode:', this.currentMode);
-            this.joinRoom();
-            this.updateRoomInfo();
-        });
-
-        this.socket.on('user-joined', (userId, mode) => {
-            console.log('Kullanıcı katıldı:', userId, 'Mode:', mode);
+        try {
+            this.socket = io();
             
-            // Yayıncı katıldığında izleyicileri bilgilendir
-            if (mode === 'broadcaster' && this.currentMode === 'viewer') {
-                this.handleBroadcasterJoined(userId);
-            }
-            
-            // İzleyici katıldığında yayıncıyı bilgilendir
-            if (mode === 'viewer' && this.currentMode === 'broadcaster' && this.isSharing) {
-                this.showNotification('Yeni izleyici katıldı', 'info');
-            }
-        });
+            this.socket.on('connect', () => {
+                console.log('Socket.IO bağlandı');
+                this.joinRoom();
+            });
 
-        this.socket.on('offer', (offer, fromId) => {
-            this.handleOffer(offer, fromId);
-        });
+            this.socket.on('user-joined', (userId, mode) => {
+                console.log('Kullanıcı katıldı:', userId, mode);
+                if (mode === 'broadcaster' && this.currentMode === 'viewer') {
+                    this.handleBroadcasterJoined(userId);
+                }
+            });
 
-        this.socket.on('answer', (answer, fromId) => {
-            this.handleAnswer(answer, fromId);
-        });
+            this.socket.on('offer', (offer, fromId) => {
+                this.handleOffer(offer, fromId);
+            });
 
-        this.socket.on('ice-candidate', (candidate, fromId) => {
-            this.handleIceCandidate(candidate, fromId);
-        });
+            this.socket.on('answer', (answer, fromId) => {
+                this.handleAnswer(answer, fromId);
+            });
 
-        this.socket.on('disconnect', () => {
-            console.log('Socket.IO bağlantısı kesildi');
-        });
+            this.socket.on('ice-candidate', (candidate, fromId) => {
+                this.handleIceCandidate(candidate, fromId);
+            });
+
+        } catch (error) {
+            console.error('Socket.IO bağlantı hatası:', error);
+            this.hideLoadingScreen(); // Hata olsa bile loading'i kapat
+        }
     }
 
     // YENİ EKLENEN: Odaya katılma
     joinRoom() {
-        console.log('Odaya katılıyor:', this.roomId, 'Mode:', this.currentMode);
-        this.socket.emit('join-room', this.roomId, this.userId, this.currentMode);
+        if (this.socket) {
+            this.socket.emit('join-room', this.roomId, this.userId, this.currentMode);
+        }
     }
 
     // YENİ EKLENEN: Room bilgisini UI'da gösterme
@@ -164,21 +149,13 @@ class ScreenShareApp {
         if (this.currentMode !== 'viewer') return;
         
         try {
-            console.log('Yayıncı katıldı, bağlantı kuruluyor...');
-            
-            // İzleyici olarak peer connection oluştur
             const peerConnection = new RTCPeerConnection({
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' }
-                ]
+                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
             });
 
             this.peerConnections[broadcasterId] = peerConnection;
 
-            // Remote stream'i al
             peerConnection.ontrack = (event) => {
-                console.log('Remote stream alındı');
                 const videoElement = document.getElementById('screen-view');
                 videoElement.srcObject = event.streams[0];
                 this.isSharing = true;
@@ -186,21 +163,18 @@ class ScreenShareApp {
                 this.showNotification('Yayın başladı!', 'success');
             };
 
-            // ICE candidate'ları gönder
             peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
+                if (event.candidate && this.socket) {
                     this.socket.emit('ice-candidate', event.candidate, broadcasterId);
                 }
             };
 
-            // Offer gönder
             const offer = await peerConnection.createOffer();
             await peerConnection.setLocalDescription(offer);
             this.socket.emit('offer', offer, broadcasterId);
 
         } catch (error) {
-            console.error('Broadcaster bağlantısı hatası:', error);
-            this.showNotification('Bağlantı hatası: ' + error.message, 'error');
+            console.error('Bağlantı hatası:', error);
         }
     }
 
@@ -209,25 +183,18 @@ class ScreenShareApp {
         if (this.currentMode !== 'broadcaster' || !this.localStream) return;
 
         try {
-            console.log('Offer alındı, yanıt veriliyor...');
-            
             const peerConnection = new RTCPeerConnection({
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' }
-                ]
+                iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
             });
 
             this.peerConnections[fromId] = peerConnection;
 
-            // Local stream'i ekle
             this.localStream.getTracks().forEach(track => {
                 peerConnection.addTrack(track, this.localStream);
             });
 
-            // ICE candidate'ları gönder
             peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
+                if (event.candidate && this.socket) {
                     this.socket.emit('ice-candidate', event.candidate, fromId);
                 }
             };
@@ -238,8 +205,7 @@ class ScreenShareApp {
             this.socket.emit('answer', answer, fromId);
 
         } catch (error) {
-            console.error('Offer işleme hatası:', error);
-            this.showNotification('Bağlantı hatası: ' + error.message, 'error');
+            console.error('Offer hatası:', error);
         }
     }
 
@@ -282,7 +248,6 @@ class ScreenShareApp {
 
             this.audioEnabled = this.localStream.getAudioTracks().length > 0;
             
-            // Local video element'i güncelle
             const videoElement = document.getElementById('screen-view');
             videoElement.srcObject = this.localStream;
             
@@ -320,7 +285,6 @@ class ScreenShareApp {
             this.localStream = null;
         }
 
-        // Peer connection'ları kapat
         Object.values(this.peerConnections).forEach(pc => pc.close());
         this.peerConnections = {};
 
