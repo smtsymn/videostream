@@ -36,8 +36,31 @@ class ScreenShareApp {
         this.peerConnections = {};
         this.localStream = null;
         this.roomId = this.getRoomIdFromURL(); // URL'den room ID al
+        this.currentMode = this.getInitialMode(); // YENİ EKLENEN
         
         this.init();
+    }
+
+    // YENİ EKLENEN: Başlangıç modunu belirleme
+    getInitialMode() {
+        // 1. Önce URL'den mode parametresini kontrol et
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlMode = urlParams.get('mode');
+        
+        if (urlMode === 'viewer' || urlMode === 'broadcaster') {
+            return urlMode;
+        }
+        
+        // 2. localStorage'dan kaydedilmiş modu kontrol et
+        const savedMode = localStorage.getItem('screenshare-mode');
+        const rememberMode = localStorage.getItem('screenshare-remember-mode') === 'true';
+        
+        if (savedMode && rememberMode) {
+            return savedMode;
+        }
+        
+        // 3. Varsayılan olarak viewer modu
+        return 'viewer';
     }
 
     // YENİ EKLENEN: URL'den room ID alma
@@ -64,8 +87,8 @@ class ScreenShareApp {
 
     init() {
         this.loadSettings();
-        this.checkSavedMode();
-        this.initSocket(); // YENİ EKLENEN
+        this.updateModeUI(); // YENİ EKLENEN - Mod UI'ını güncelle
+        this.initSocket();
         this.bindEvents();
         this.checkBrowserSupport();
         this.hideLoadingScreen();
@@ -73,13 +96,13 @@ class ScreenShareApp {
     }
 
     checkSavedMode() {
-        const savedMode = localStorage.getItem('screenshare-mode');
-        const rememberMode = localStorage.getItem('screenshare-remember-mode') === 'true';
-        
-        if (savedMode && rememberMode) {
-            this.setMode(savedMode);
-        } else {
+        // Bu fonksiyonu güncelle - artık constructor'da mod belirleniyor
+        if (!this.currentMode) {
             this.showModeSelection();
+        } else {
+            this.updateModeUI();
+            this.loadInstructions();
+            this.updatePlaceholder();
         }
     }
 
@@ -93,6 +116,12 @@ class ScreenShareApp {
         this.updateModeUI();
         this.loadInstructions();
         this.updatePlaceholder();
+        
+        // Socket.IO bağlantısını yeniden başlat
+        if (this.socket && this.socket.connected) {
+            this.socket.disconnect();
+            this.initSocket();
+        }
         
         // Save mode if remember is checked
         if (this.settings.rememberMode) {
@@ -234,6 +263,7 @@ class ScreenShareApp {
             option.addEventListener('click', () => {
                 const mode = option.dataset.mode;
                 this.setMode(mode);
+                this.updateURLWithMode(mode); // YENİ EKLENEN
             });
         });
 
@@ -315,15 +345,22 @@ class ScreenShareApp {
         this.socket = io();
         
         this.socket.on('connect', () => {
-            console.log('Socket.IO bağlandı, Room ID:', this.roomId);
+            console.log('Socket.IO bağlandı, Room ID:', this.roomId, 'Mode:', this.currentMode);
             this.joinRoom();
             this.updateRoomInfo();
         });
 
         this.socket.on('user-joined', (userId, mode) => {
-            console.log('Kullanıcı katıldı:', userId, mode);
+            console.log('Kullanıcı katıldı:', userId, 'Mode:', mode);
+            
+            // Yayıncı katıldığında izleyicileri bilgilendir
             if (mode === 'broadcaster' && this.currentMode === 'viewer') {
                 this.handleBroadcasterJoined(userId);
+            }
+            
+            // İzleyici katıldığında yayıncıyı bilgilendir
+            if (mode === 'viewer' && this.currentMode === 'broadcaster' && this.isSharing) {
+                this.showNotification('Yeni izleyici katıldı', 'info');
             }
         });
 
@@ -346,6 +383,7 @@ class ScreenShareApp {
 
     // YENİ EKLENEN: Odaya katılma
     joinRoom() {
+        console.log('Odaya katılıyor:', this.roomId, 'Mode:', this.currentMode);
         this.socket.emit('join-room', this.roomId, this.userId, this.currentMode);
     }
 
@@ -353,14 +391,13 @@ class ScreenShareApp {
     updateRoomInfo() {
         const roomInfo = document.getElementById('room-info');
         if (roomInfo) {
-            roomInfo.textContent = `Oda: ${this.roomId}`;
+            roomInfo.textContent = `Oda: ${this.roomId} | Mod: ${this.currentMode === 'viewer' ? 'İzleyici' : 'Yayıncı'}`;
         }
         
-        // URL'yi paylaşılabilir hale getir
-        const shareUrl = `${window.location.origin}${window.location.pathname}?room=${this.roomId}`;
+        // URL'yi paylaşılabilir hale getir (mode parametresi ile)
+        const shareUrl = `${window.location.origin}${window.location.pathname}?room=${this.roomId}&mode=${this.currentMode}`;
         console.log('Paylaşım URL\'si:', shareUrl);
         
-        // URL kopyalama butonu ekle
         this.addCopyUrlButton(shareUrl);
     }
 
@@ -1100,6 +1137,19 @@ class ScreenShareApp {
         this.settings.notificationVolume = parseInt(value);
         document.getElementById('volume-display').textContent = value + '%';
         this.saveSettings();
+    }
+
+    // YENİ EKLENEN: URL'ye mode parametresi ekleme
+    updateURLWithMode(mode) {
+        const url = new URL(window.location);
+        url.searchParams.set('mode', mode);
+        window.history.replaceState({}, '', url);
+    }
+
+    // YENİ EKLENEN: URL'den mode parametresini alma
+    getModeFromURL() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('mode');
     }
 }
 
