@@ -66,6 +66,31 @@ class ScreenShareApp {
         this.updateStats();
     }
 
+    // YENİ EKLENEN: updateModeUI fonksiyonu
+    updateModeUI() {
+        const modeBadge = document.getElementById('mode-badge');
+        const switchModeBtn = document.getElementById('switch-mode-btn');
+        
+        if (this.currentMode) {
+            modeBadge.textContent = this.currentMode === 'viewer' ? 'İzleyici' : 'Yayıncı';
+            modeBadge.className = `mode-badge ${this.currentMode}`;
+            modeBadge.classList.remove('hidden');
+            
+            // Update switch mode button icon
+            if (switchModeBtn) {
+                const icon = switchModeBtn.querySelector('i');
+                if (icon) {
+                    icon.className = this.currentMode === 'viewer' ? 'fas fa-broadcast-tower' : 'fas fa-eye';
+                }
+                switchModeBtn.title = this.currentMode === 'viewer' ? 'Yayıncı Moduna Geç' : 'İzleyici Moduna Geç';
+            }
+        } else {
+            if (modeBadge) {
+                modeBadge.classList.add('hidden');
+            }
+        }
+    }
+
     // YENİ EKLENEN: Socket.IO başlatma
     initSocket() {
         try {
@@ -888,18 +913,18 @@ document.addEventListener('DOMContentLoaded', () => {
     new ScreenShareApp();
 });
 
-// Service Worker for PWA support (optional)
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
-            .then(registration => {
-                console.log('SW registered: ', registration);
-            })
-            .catch(registrationError => {
-                console.log('SW registration failed: ', registrationError);
-            });
-    });
-}
+// Service Worker'ı kaldır - 404 hatası veriyor
+// if ('serviceWorker' in navigator) {
+//     window.addEventListener('load', () => {
+//         navigator.serviceWorker.register('/sw.js')
+//             .then(registration => {
+//                 console.log('SW registered: ', registration);
+//             })
+//             .catch(registrationError => {
+//                 console.log('SW registration failed: ', registrationError);
+//             });
+//     });
+// }
 
 // Add touch support for mobile
 document.addEventListener('touchstart', function() {}, {passive: true});
