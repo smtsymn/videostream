@@ -31,12 +31,41 @@ class ScreenShareApp {
         this.notificationSound = null;
         this.userId = this.generateUserId();
         
+        // WebRTC properties
+        this.socket = null;
+        this.peerConnections = {};
+        this.localStream = null;
+        this.roomId = this.getRoomIdFromURL(); // URL'den room ID al
+        
         this.init();
+    }
+
+    // Yeni eklenen: URL'den room ID alma fonksiyonu
+    getRoomIdFromURL() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomId = urlParams.get('room');
+        
+        if (roomId) {
+            return roomId;
+        } else {
+            // Room ID yoksa otomatik oluştur ve URL'yi güncelle
+            const autoRoomId = this.generateRoomId();
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.set('room', autoRoomId);
+            window.history.replaceState({}, '', newUrl);
+            return autoRoomId;
+        }
+    }
+
+    // Yeni eklenen: Otomatik room ID oluşturma
+    generateRoomId() {
+        return 'room_' + Math.random().toString(36).substr(2, 9);
     }
 
     init() {
         this.loadSettings();
         this.checkSavedMode();
+        this.initSocket(); // Yeni eklenen
         this.bindEvents();
         this.checkBrowserSupport();
         this.hideLoadingScreen();
@@ -281,8 +310,125 @@ class ScreenShareApp {
         window.addEventListener('resize', () => this.handleResize());
     }
 
+    // Yeni eklenen Socket.IO başlatma
+    initSocket() {
+        this.socket = io();
+        
+        this.socket.on('connect', () => {
+            console.log('Socket.IO bağlandı, Room ID:', this.roomId);
+            this.joinRoom();
+            this.updateRoomInfo(); // Yeni eklenen
+        });
+
+        this.socket.on('user-joined', (userId, mode) => {
+            console.log('Kullanıcı katıldı:', userId, mode);
+            if (mode === 'broadcaster' && this.currentMode === 'viewer') {
+                this.handleBroadcasterJoined(userId);
+            }
+        });
+
+        this.socket.on('offer', (offer, fromId) => {
+            this.handleOffer(offer, fromId);
+        });
+
+        this.socket.on('answer', (answer, fromId) => {
+            this.handleAnswer(answer, fromId);
+        });
+
+        this.socket.on('ice-candidate', (candidate, fromId) => {
+            this.handleIceCandidate(candidate, fromId);
+        });
+    }
+
+    joinRoom() {
+        this.socket.emit('join-room', this.roomId, this.userId, this.currentMode);
+    }
+
+    // Yayıncı katıldığında izleyici tarafında çalışır
+    async handleBroadcasterJoined(broadcasterId) {
+        if (this.currentMode !== 'viewer') return;
+        
+        try {
+            // İzleyici olarak peer connection oluştur
+            const peerConnection = new RTCPeerConnection({
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' }
+                ]
+            });
+
+            this.peerConnections[broadcasterId] = peerConnection;
+
+            // Remote stream'i al
+            peerConnection.ontrack = (event) => {
+                const videoElement = document.getElementById('screen-view');
+                videoElement.srcObject = event.streams[0];
+                this.isSharing = true;
+                this.updateUI();
+                this.showNotification('Yayın başladı!', 'success');
+            };
+
+            // Offer gönder
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            this.socket.emit('offer', offer, broadcasterId);
+
+        } catch (error) {
+            console.error('Broadcaster bağlantısı hatası:', error);
+        }
+    }
+
+    // Offer alındığında yayıncı tarafında çalışır
+    async handleOffer(offer, fromId) {
+        if (this.currentMode !== 'broadcaster' || !this.localStream) return;
+
+        try {
+            const peerConnection = new RTCPeerConnection({
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' }
+                ]
+            });
+
+            this.peerConnections[fromId] = peerConnection;
+
+            // Local stream'i ekle
+            this.localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, this.localStream);
+            });
+
+            // ICE candidate'ları gönder
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    this.socket.emit('ice-candidate', event.candidate, fromId);
+                }
+            };
+
+            await peerConnection.setRemoteDescription(offer);
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            this.socket.emit('answer', answer, fromId);
+
+        } catch (error) {
+            console.error('Offer işleme hatası:', error);
+        }
+    }
+
+    async handleAnswer(answer, fromId) {
+        const peerConnection = this.peerConnections[fromId];
+        if (peerConnection) {
+            await peerConnection.setRemoteDescription(answer);
+        }
+    }
+
+    async handleIceCandidate(candidate, fromId) {
+        const peerConnection = this.peerConnections[fromId];
+        if (peerConnection) {
+            await peerConnection.addIceCandidate(candidate);
+        }
+    }
+
     async startSharing() {
-        // Only allow sharing in broadcaster mode
         if (this.currentMode !== 'broadcaster') {
             this.showNotification('Yayıncı modunda olmalısınız', 'error');
             return;
@@ -293,7 +439,7 @@ class ScreenShareApp {
             
             const constraints = this.getVideoConstraints();
             
-            this.stream = await navigator.mediaDevices.getDisplayMedia({
+            this.localStream = await navigator.mediaDevices.getDisplayMedia({
                 video: constraints.video,
                 audio: {
                     echoCancellation: false,
@@ -303,14 +449,12 @@ class ScreenShareApp {
                 }
             });
 
-            // Check if audio is being captured
-            this.audioEnabled = this.stream.getAudioTracks().length > 0;
+            this.audioEnabled = this.localStream.getAudioTracks().length > 0;
             
-            // Set up video element
+            // Local video element'i güncelle
             const videoElement = document.getElementById('screen-view');
-            videoElement.srcObject = this.stream;
+            videoElement.srcObject = this.localStream;
             
-            // Wait for video to load
             await new Promise((resolve) => {
                 videoElement.onloadedmetadata = resolve;
             });
@@ -319,16 +463,19 @@ class ScreenShareApp {
             this.updateUI();
             this.hideStatusOverlay();
             
-            // Handle when user stops sharing via browser UI
-            this.stream.getVideoTracks()[0].onended = () => {
+            // Mevcut peer connection'lara stream ekle
+            Object.values(this.peerConnections).forEach(pc => {
+                this.localStream.getTracks().forEach(track => {
+                    pc.addTrack(track, this.localStream);
+                });
+            });
+
+            this.localStream.getVideoTracks()[0].onended = () => {
                 this.stopSharing();
             };
 
-            // Start stats monitoring
             this.startStatsMonitoring();
-            
             this.showNotification('Ekran paylaşımı başlatıldı!', 'success');
-            console.log('Screen sharing started:', this.stream);
             
         } catch (err) {
             this.hideStatusOverlay();
@@ -337,29 +484,26 @@ class ScreenShareApp {
     }
 
     stopSharing() {
-        if (!this.stream) return;
+        if (this.localStream) {
+            this.localStream.getTracks().forEach(track => track.stop());
+            this.localStream = null;
+        }
 
-        // Stop all tracks
-        this.stream.getTracks().forEach(track => track.stop());
-        
-        // Clear video element
+        // Peer connection'ları kapat
+        Object.values(this.peerConnections).forEach(pc => pc.close());
+        this.peerConnections = {};
+
         const videoElement = document.getElementById('screen-view');
         videoElement.srcObject = null;
         
-        // Reset state
-        this.stream = null;
         this.isSharing = false;
         this.audioEnabled = false;
         this.videoEnabled = true;
         
-        // Stop stats monitoring
         this.stopStatsMonitoring();
-        
-        // Update UI
         this.updateUI();
         
         this.showNotification('Ekran paylaşımı durduruldu', 'info');
-        console.log('Screen sharing stopped');
     }
 
     toggleAudio() {
@@ -898,6 +1042,43 @@ class ScreenShareApp {
         this.settings.notificationVolume = parseInt(value);
         document.getElementById('volume-display').textContent = value + '%';
         this.saveSettings();
+    }
+
+    // Yeni eklenen: Room bilgisini UI'da gösterme
+    updateRoomInfo() {
+        const roomInfo = document.getElementById('room-info');
+        if (roomInfo) {
+            roomInfo.textContent = `Oda: ${this.roomId}`;
+        }
+        
+        // URL'yi paylaşılabilir hale getir
+        const shareUrl = `${window.location.origin}${window.location.pathname}?room=${this.roomId}`;
+        console.log('Paylaşım URL\'si:', shareUrl);
+        
+        // İsteğe bağlı: URL'yi kopyalama butonu ekle
+        this.addCopyUrlButton(shareUrl);
+    }
+
+    // Yeni eklenen: URL kopyalama butonu
+    addCopyUrlButton(shareUrl) {
+        const headerControls = document.querySelector('.header-controls');
+        if (headerControls && !document.getElementById('copy-url-btn')) {
+            const copyBtn = document.createElement('button');
+            copyBtn.id = 'copy-url-btn';
+            copyBtn.className = 'btn btn-icon';
+            copyBtn.title = 'URL\'yi Kopyala';
+            copyBtn.innerHTML = '<i class="fas fa-link"></i>';
+            
+            copyBtn.addEventListener('click', () => {
+                navigator.clipboard.writeText(shareUrl).then(() => {
+                    this.showNotification('URL kopyalandı!', 'success');
+                }).catch(() => {
+                    this.showNotification('URL kopyalanamadı', 'error');
+                });
+            });
+            
+            headerControls.insertBefore(copyBtn, headerControls.firstChild);
+        }
     }
 }
 

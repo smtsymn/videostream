@@ -75,6 +75,7 @@
                     <div class="connection-info">
                         <span id="connection-status" class="status-text">Bağlantı yok</span>
                         <div id="status-indicator" class="status-dot"></div>
+                        <span id="room-info" class="room-info"></span> <!-- Yeni eklenen -->
                     </div>
                     <button id="settings-btn" class="btn btn-icon" title="Ayarlar">
                         <i class="fas fa-cog"></i>
@@ -346,6 +347,8 @@
         </div>
     </footer>
 
+    <!-- Socket.IO client kütüphanesini ekleyin (script.js'den önce) -->
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="script.js"></script>
 </body>
 </html> 

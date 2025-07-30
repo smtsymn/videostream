@@ -1215,3 +1215,14 @@ video {
         transition-duration: 0.01ms !important;
     }
 } 
+
+.room-info {
+    font-size: 0.8rem;
+    color: #6b7280;
+    margin-left: 10px;
+    font-family: monospace;
+}
+
+#copy-url-btn {
+    margin-right: 10px;
+} 
