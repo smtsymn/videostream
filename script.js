@@ -60,10 +60,190 @@ class ScreenShareApp {
         this.loadSettings();
         this.updateModeUI(); // Mod UI'ını güncelle
         this.initSocket(); // YENİ EKLENEN
-        this.bindEvents();
+        this.bindEvents(); // Bu fonksiyonu tanımlayacağız
         this.checkBrowserSupport();
         this.hideLoadingScreen();
         this.updateStats();
+    }
+
+    // YENİ EKLENEN: bindEvents fonksiyonu
+    bindEvents() {
+        // Mode selection
+        document.querySelectorAll('.mode-option').forEach(option => {
+            option.addEventListener('click', () => {
+                const mode = option.dataset.mode;
+                this.setMode(mode);
+            });
+        });
+
+        // Remember mode checkbox
+        const rememberModeCheckbox = document.getElementById('remember-mode');
+        if (rememberModeCheckbox) {
+            rememberModeCheckbox.addEventListener('change', (e) => {
+                this.settings.rememberMode = e.target.checked;
+                this.saveSettings();
+            });
+        }
+
+        // Switch mode button
+        const switchModeBtn = document.getElementById('switch-mode-btn');
+        if (switchModeBtn) {
+            switchModeBtn.addEventListener('click', () => {
+                this.showModeSelection();
+            });
+        }
+
+        // Chat events
+        const toggleChatBtn = document.getElementById('toggle-chat');
+        if (toggleChatBtn) {
+            toggleChatBtn.addEventListener('click', () => this.toggleChat());
+        }
+
+        const sendChatBtn = document.getElementById('send-chat');
+        if (sendChatBtn) {
+            sendChatBtn.addEventListener('click', () => this.sendChatMessage());
+        }
+
+        const chatInput = document.getElementById('chat-input');
+        if (chatInput) {
+            chatInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') this.sendChatMessage();
+            });
+        }
+
+        // Voice chat events
+        const toggleVoiceBtn = document.getElementById('toggle-voice');
+        if (toggleVoiceBtn) {
+            toggleVoiceBtn.addEventListener('click', () => this.toggleVoice());
+        }
+
+        const joinVoiceBtn = document.getElementById('join-voice');
+        if (joinVoiceBtn) {
+            joinVoiceBtn.addEventListener('click', () => this.joinVoiceChat());
+        }
+
+        const leaveVoiceBtn = document.getElementById('leave-voice');
+        if (leaveVoiceBtn) {
+            leaveVoiceBtn.addEventListener('click', () => this.leaveVoiceChat());
+        }
+
+        // Info toggle
+        const toggleInfoBtn = document.getElementById('toggle-info');
+        if (toggleInfoBtn) {
+            toggleInfoBtn.addEventListener('click', () => this.toggleInfo());
+        }
+
+        // Main buttons
+        const shareBtn = document.getElementById('share-btn');
+        if (shareBtn) {
+            shareBtn.addEventListener('click', () => this.startSharing());
+        }
+
+        const stopBtn = document.getElementById('stop-btn');
+        if (stopBtn) {
+            stopBtn.addEventListener('click', () => this.stopSharing());
+        }
+
+        const toggleAudioBtn = document.getElementById('toggle-audio-btn');
+        if (toggleAudioBtn) {
+            toggleAudioBtn.addEventListener('click', () => this.toggleAudio());
+        }
+
+        const toggleVideoBtn = document.getElementById('toggle-video-btn');
+        if (toggleVideoBtn) {
+            toggleVideoBtn.addEventListener('click', () => this.toggleVideo());
+        }
+        
+        // Settings
+        const settingsBtn = document.getElementById('settings-btn');
+        if (settingsBtn) {
+            settingsBtn.addEventListener('click', () => this.openSettings());
+        }
+
+        const closeSettingsBtn = document.getElementById('close-settings');
+        if (closeSettingsBtn) {
+            closeSettingsBtn.addEventListener('click', () => this.closeSettings());
+        }
+        
+        // Video controls
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+        if (fullscreenBtn) {
+            fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
+        }
+
+        const qualityBtn = document.getElementById('quality-btn');
+        if (qualityBtn) {
+            qualityBtn.addEventListener('click', () => this.openSettings());
+        }
+        
+        // Settings form
+        const videoQualitySelect = document.getElementById('video-quality');
+        if (videoQualitySelect) {
+            videoQualitySelect.addEventListener('change', (e) => this.updateSetting('videoQuality', e.target.value));
+        }
+
+        const frameRateSelect = document.getElementById('frame-rate');
+        if (frameRateSelect) {
+            frameRateSelect.addEventListener('change', (e) => this.updateSetting('frameRate', parseInt(e.target.value)));
+        }
+
+        const autoQualityCheckbox = document.getElementById('auto-quality');
+        if (autoQualityCheckbox) {
+            autoQualityCheckbox.addEventListener('change', (e) => this.updateSetting('autoQuality', e.target.checked));
+        }
+
+        const showStatsCheckbox = document.getElementById('show-stats');
+        if (showStatsCheckbox) {
+            showStatsCheckbox.addEventListener('change', (e) => this.updateSetting('showStats', e.target.checked));
+        }
+
+        const autoJoinCheckbox = document.getElementById('auto-join');
+        if (autoJoinCheckbox) {
+            autoJoinCheckbox.addEventListener('change', (e) => this.updateSetting('autoJoin', e.target.checked));
+        }
+
+        const chatNotificationsCheckbox = document.getElementById('chat-notifications');
+        if (chatNotificationsCheckbox) {
+            chatNotificationsCheckbox.addEventListener('change', (e) => this.updateSetting('chatNotifications', e.target.checked));
+        }
+
+        const voiceNotificationsCheckbox = document.getElementById('voice-notifications');
+        if (voiceNotificationsCheckbox) {
+            voiceNotificationsCheckbox.addEventListener('change', (e) => this.updateSetting('voiceNotifications', e.target.checked));
+        }
+
+        const notificationVolumeRange = document.getElementById('notification-volume');
+        if (notificationVolumeRange) {
+            notificationVolumeRange.addEventListener('input', (e) => this.updateNotificationVolume(e.target.value));
+        }
+        
+        // Modal backdrop click
+        const settingsModal = document.getElementById('settings-modal');
+        if (settingsModal) {
+            settingsModal.addEventListener('click', (e) => {
+                if (e.target.id === 'settings-modal') {
+                    this.closeSettings();
+                }
+            });
+        }
+
+        const modeModal = document.getElementById('mode-modal');
+        if (modeModal) {
+            modeModal.addEventListener('click', (e) => {
+                if (e.target.id === 'mode-modal') {
+                    // Don't close mode modal on backdrop click - user must choose
+                }
+            });
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => this.handleKeyboard(e));
+        
+        // Visibility change (when user switches tabs)
+        document.addEventListener('visibilitychange', () => this.handleVisibilityChange());
+        
+        // Window resize
+        window.addEventListener('resize', () => this.handleResize());
     }
 
     // YENİ EKLENEN: updateModeUI fonksiyonu
@@ -72,9 +252,11 @@ class ScreenShareApp {
         const switchModeBtn = document.getElementById('switch-mode-btn');
         
         if (this.currentMode) {
-            modeBadge.textContent = this.currentMode === 'viewer' ? 'İzleyici' : 'Yayıncı';
-            modeBadge.className = `mode-badge ${this.currentMode}`;
-            modeBadge.classList.remove('hidden');
+            if (modeBadge) {
+                modeBadge.textContent = this.currentMode === 'viewer' ? 'İzleyici' : 'Yayıncı';
+                modeBadge.className = `mode-badge ${this.currentMode}`;
+                modeBadge.classList.remove('hidden');
+            }
             
             // Update switch mode button icon
             if (switchModeBtn) {
