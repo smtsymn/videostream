@@ -68,7 +68,7 @@ class ScreenShareApp {
 
     init() {
         this.loadSettings();
-        this.updateModeUI(); // Mod UI'ını güncelle
+//this.updateModeUI(); // Mod UI'ını güncelle
         this.initSocket(); // YENİ EKLENEN
         this.bindEvents();
         this.checkBrowserSupport();
