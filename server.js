@@ -1,4 +1,3 @@
-// server.js - güncellenmiş
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -25,14 +24,19 @@ io.on('connection', (socket) => {
     socket.on('join-room', (roomId, mode) => {
         socket.join(roomId);
 
-        // Odaya yeni bir kullanıcı katıldı - diğerlerine socket.id ve mod gönder
+        // Yayıncıya bildir: yeni kullanıcı geldi
         socket.to(roomId).emit('user-joined', socket.id, mode);
 
-        // (İsteğe bağlı) Katılan kişiye oda bilgisini gönder
+        // Katılan kullanıcıya onay
         socket.emit('joined-success', { roomId, yourSocketId: socket.id });
     });
 
-    // Tekil socket'e doğrudan gönderim için io.to(...) kullanılmalı
+    // İzleyici, yayıncıdan offer ister
+    socket.on('request-offer', (toId, fromId) => {
+        io.to(toId).emit('request-offer', fromId);
+    });
+
+    // WebRTC offer, answer, ice-candidate
     socket.on('offer', (offer, targetSocketId) => {
         if (targetSocketId) {
             io.to(targetSocketId).emit('offer', offer, socket.id);
@@ -52,12 +56,11 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
-        // İsteğe bağlı: odalardaki diğerlerine ayrıldığını bildir
-        // let rooms = Array.from(socket.rooms); // eğer gerekirse
+        // Ayrılma durumu
     });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+    console.log(`Server running on http://localhost:${PORT}`);
 });
