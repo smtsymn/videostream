@@ -1,3 +1,4 @@
+// server.js - güncellenmiş
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -19,23 +20,44 @@ app.use(cors());
 
 // WebRTC Signaling
 io.on('connection', (socket) => {
-    socket.on('join-room', (roomId, userId, mode) => {
+
+    // Odaya katılma: server diğerlerine socket.id ile bildirir
+    socket.on('join-room', (roomId, mode) => {
         socket.join(roomId);
-        socket.to(roomId).emit('user-joined', userId, mode);
+
+        // Odaya yeni bir kullanıcı katıldı - diğerlerine socket.id ve mod gönder
+        socket.to(roomId).emit('user-joined', socket.id, mode);
+
+        // (İsteğe bağlı) Katılan kişiye oda bilgisini gönder
+        socket.emit('joined-success', { roomId, yourSocketId: socket.id });
     });
-    socket.on('offer', (offer, targetId) => {
-        socket.to(targetId).emit('offer', offer, socket.id);
+
+    // Tekil socket'e doğrudan gönderim için io.to(...) kullanılmalı
+    socket.on('offer', (offer, targetSocketId) => {
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('offer', offer, socket.id);
+        }
     });
-    socket.on('answer', (answer, targetId) => {
-        socket.to(targetId).emit('answer', answer, socket.id);
+
+    socket.on('answer', (answer, targetSocketId) => {
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('answer', answer, socket.id);
+        }
     });
-    socket.on('ice-candidate', (candidate, targetId) => {
-        socket.to(targetId).emit('ice-candidate', candidate, socket.id);
+
+    socket.on('ice-candidate', (candidate, targetSocketId) => {
+        if (targetSocketId) {
+            io.to(targetSocketId).emit('ice-candidate', candidate, socket.id);
+        }
     });
-    socket.on('disconnect', () => {});
+
+    socket.on('disconnect', () => {
+        // İsteğe bağlı: odalardaki diğerlerine ayrıldığını bildir
+        // let rooms = Array.from(socket.rooms); // eğer gerekirse
+    });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-}); 
+    console.log(`Server running on port ${PORT}`);
+});
